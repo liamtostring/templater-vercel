@@ -1,0 +1,40 @@
+{
+  "name": "templater-vercel",
+  "version": "2.0.0",
+  "description": "Templater - AI-powered DOCX to JSON template processor (Vercel Edition)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@vercel/blob": "^0.23.4",
+    "@vercel/kv": "^1.0.1",
+    "bcryptjs": "^2.4.3",
+    "formidable": "^3.5.1",
+    "js-cookie": "^3.0.5",
+    "mammoth": "^1.6.0",
+    "next": "^14.1.0",
+    "openai": "^4.28.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "turndown": "^7.1.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/formidable": "^3.4.5",
+    "@types/js-cookie": "^3.0.6",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/turndown": "^5.0.5",
+    "@types/uuid": "^9.0.8",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.0"
+  }
+}
