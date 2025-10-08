@@ -301,7 +301,11 @@ export default function BatchProcess() {
                     <td className="p-2 text-sm">{result.message}</td>
                     <td className="p-2">
                       {result.json_path && (
-                        <a href={`/uploads/generated/${result.json_path}`} download className="text-primary hover:underline text-sm">
+                        <a
+                          href={`/api/download?type=generated&filename=${encodeURIComponent(result.json_path)}`}
+                          download={result.json_path}
+                          className="text-primary hover:underline text-sm"
+                        >
                           ⬇️ JSON
                         </a>
                       )}

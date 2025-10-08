@@ -296,8 +296,8 @@ export default function SingleProcess() {
             <div>
               <h4 className="font-semibold mb-2">Generated JSON</h4>
               <a
-                href={`/uploads/generated/${result.json_path}`}
-                download
+                href={`/api/download?type=generated&filename=${encodeURIComponent(result.json_path)}`}
+                download={result.json_path}
                 className="btn-primary inline-block"
               >
                 ⬇️ Download JSON
@@ -307,8 +307,8 @@ export default function SingleProcess() {
               <div>
                 <h4 className="font-semibold mb-2">Enhanced Markdown</h4>
                 <a
-                  href={`/uploads/enhanced/${result.enhanced_path}`}
-                  download
+                  href={`/api/download?type=enhanced&filename=${encodeURIComponent(result.enhanced_path)}`}
+                  download={result.enhanced_path}
                   className="btn-primary inline-block"
                 >
                   ⬇️ Download Markdown
