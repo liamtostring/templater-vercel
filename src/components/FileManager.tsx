@@ -40,9 +40,51 @@ export default function FileManager() {
     }
   };
 
-  const FileSection = ({ title, type, files: fileList }: any) => (
+  const handleDeleteAll = async (type: string, typeName: string) => {
+    const fileCount = files[type]?.length || 0;
+
+    if (fileCount === 0) {
+      alert('No files to delete');
+      return;
+    }
+
+    if (!confirm(`⚠️ WARNING: Delete ALL ${fileCount} ${typeName} file(s)?\n\nThis action cannot be undone!`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_all', type })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`✅ Successfully deleted ${data.count} file(s)`);
+        loadFiles();
+      } else {
+        const data = await res.json();
+        alert(`Failed to delete files: ${data.error}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const FileSection = ({ title, type, files: fileList, showBulkDelete = false, typeName = '' }: any) => (
     <div className="card">
-      <h4 className="text-xl font-bold mb-4">{title}</h4>
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="text-xl font-bold">{title}</h4>
+        {showBulkDelete && fileList && fileList.length > 0 && (
+          <button
+            onClick={() => handleDeleteAll(type, typeName)}
+            className="btn-danger text-sm"
+          >
+            🗑️ Delete All ({fileList.length})
+          </button>
+        )}
+      </div>
       {fileList && fileList.length > 0 ? (
         <div className="space-y-2">
           {fileList.map((file: any) => (
@@ -83,10 +125,33 @@ export default function FileManager() {
       <p className="text-gray-600 mb-6">View and manage all uploaded and generated files.</p>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <FileSection title="📄 DOCX Files" type="docx" files={files.docx} />
-        <FileSection title="📋 JSON Templates" type="template" files={files.template} />
-        <FileSection title="📝 Enhanced Markdown" type="enhanced" files={files.enhanced} />
-        <FileSection title="✅ Generated JSON" type="generated" files={files.generated} />
+        <FileSection
+          title="📄 DOCX Files"
+          type="docx"
+          files={files.docx}
+          showBulkDelete={true}
+          typeName="DOCX"
+        />
+        <FileSection
+          title="📋 JSON Templates"
+          type="template"
+          files={files.template}
+          showBulkDelete={false}
+        />
+        <FileSection
+          title="📝 Enhanced Markdown"
+          type="enhanced"
+          files={files.enhanced}
+          showBulkDelete={true}
+          typeName="Enhanced Markdown"
+        />
+        <FileSection
+          title="✅ Generated JSON"
+          type="generated"
+          files={files.generated}
+          showBulkDelete={true}
+          typeName="Generated JSON"
+        />
       </div>
     </div>
   );

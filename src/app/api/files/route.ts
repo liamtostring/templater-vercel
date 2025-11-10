@@ -12,17 +12,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, type, filename } = body;
 
+    const dirMap: Record<string, string> = {
+      docx: 'docx',
+      template: 'templates',
+      enhanced: 'enhanced',
+      generated: 'generated'
+    };
+
     if (action === 'delete') {
       if (!filename) {
         return NextResponse.json({ error: 'Filename is required' }, { status: 400 });
       }
-
-      const dirMap: Record<string, string> = {
-        docx: 'docx',
-        template: 'templates',
-        enhanced: 'enhanced',
-        generated: 'generated'
-      };
 
       if (!dirMap[type]) {
         return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
@@ -39,6 +39,21 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ success: true, message: 'File deleted successfully' });
+    }
+
+    if (action === 'delete_all') {
+      if (!dirMap[type]) {
+        return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
+      }
+
+      const dirName = dirMap[type];
+      const deletedCount = await FileStorage.deleteDirectory(dirName);
+
+      return NextResponse.json({
+        success: true,
+        message: `Deleted ${deletedCount} file(s)`,
+        count: deletedCount
+      });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
