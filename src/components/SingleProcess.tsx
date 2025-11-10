@@ -58,35 +58,52 @@ export default function SingleProcess() {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const fileInput = form.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = fileInput.files?.[0];
+    const files = fileInput.files;
 
-    if (!file) return;
+    if (!files || files.length === 0) return;
 
-    const formDataToSend = new FormData();
-    formDataToSend.append('file', file);
-    formDataToSend.append('type', type);
+    const filesArray = Array.from(files);
+    let successCount = 0;
+    let failCount = 0;
 
     try {
-      console.log(`📤 Uploading ${type} file:`, file.name);
+      console.log(`📤 Uploading ${filesArray.length} ${type} file(s)...`);
 
-      const res = await authFetch('/api/upload', {
-        method: 'POST',
-        body: formDataToSend
-      });
+      for (const file of filesArray) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('file', file);
+        formDataToSend.append('type', type);
 
-      if (res.ok) {
-        const data = await res.json();
-        console.log('✅ Upload successful:', data);
-        console.log('   Storage:', data.storage);
-        console.log('   Filename:', data.filename);
-        if (data.url) console.log('   URL:', data.url);
-        alert('File uploaded successfully!');
+        try {
+          console.log(`   Uploading: ${file.name}`);
+
+          const res = await authFetch('/api/upload', {
+            method: 'POST',
+            body: formDataToSend
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log(`   ✅ ${file.name} uploaded successfully`);
+            successCount++;
+          } else {
+            const data = await res.json();
+            console.error(`   ❌ ${file.name} failed:`, data.error);
+            failCount++;
+          }
+        } catch (error: any) {
+          console.error(`   ❌ ${file.name} error:`, error);
+          failCount++;
+        }
+      }
+
+      // Show summary
+      if (successCount > 0) {
+        alert(`✅ Successfully uploaded ${successCount} file(s)${failCount > 0 ? `\n❌ Failed: ${failCount}` : ''}`);
         loadFiles();
         form.reset();
       } else {
-        const data = await res.json();
-        console.error('❌ Upload failed:', data);
-        alert(data.error || 'Upload failed');
+        alert(`❌ All uploads failed`);
       }
     } catch (error: any) {
       console.error('❌ Upload error:', error);
@@ -135,9 +152,9 @@ export default function SingleProcess() {
       <div className="grid md:grid-cols-2 gap-6 mb-8">
         {/* Upload DOCX */}
         <div className="card">
-          <h3 className="text-xl font-bold mb-4">Upload DOCX File</h3>
+          <h3 className="text-xl font-bold mb-4">Upload DOCX File(s)</h3>
           <form onSubmit={(e) => handleUpload(e, 'docx')} className="mb-4">
-            <input type="file" accept=".docx" className="input-field mb-2" required />
+            <input type="file" accept=".docx" className="input-field mb-2" required multiple />
             <button type="submit" className="btn-primary">Upload DOCX</button>
           </form>
           <div className="mt-4">
@@ -157,9 +174,9 @@ export default function SingleProcess() {
 
         {/* Upload Template */}
         <div className="card">
-          <h3 className="text-xl font-bold mb-4">Upload JSON Template</h3>
+          <h3 className="text-xl font-bold mb-4">Upload JSON Template(s)</h3>
           <form onSubmit={(e) => handleUpload(e, 'template')} className="mb-4">
-            <input type="file" accept=".json" className="input-field mb-2" required />
+            <input type="file" accept=".json" className="input-field mb-2" required multiple />
             <button type="submit" className="btn-primary">Upload Template</button>
           </form>
           <div className="mt-4">
