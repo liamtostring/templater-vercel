@@ -72,18 +72,50 @@ export default function FileManager() {
     }
   };
 
-  const FileSection = ({ title, type, files: fileList, showBulkDelete = false, typeName = '' }: any) => (
+  const handleDownloadAll = async (type: string) => {
+    try {
+      const response = await fetch(`/api/download-all?type=${type}`);
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      // Create blob from response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}_files.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      alert(`Failed to download: ${error.message}`);
+    }
+  };
+
+  const FileSection = ({ title, type, files: fileList, showBulkDelete = false, showDownloadAll = false, typeName = '' }: any) => (
     <div className="card">
       <div className="flex justify-between items-center mb-4">
         <h4 className="text-xl font-bold">{title}</h4>
-        {showBulkDelete && fileList && fileList.length > 0 && (
-          <button
-            onClick={() => handleDeleteAll(type, typeName)}
-            className="btn-danger text-sm"
-          >
-            🗑️ Delete All ({fileList.length})
-          </button>
-        )}
+        <div className="flex gap-2">
+          {showDownloadAll && fileList && fileList.length > 0 && (
+            <button
+              onClick={() => handleDownloadAll(type)}
+              className="btn-primary text-sm"
+            >
+              📦 Download All ({fileList.length})
+            </button>
+          )}
+          {showBulkDelete && fileList && fileList.length > 0 && (
+            <button
+              onClick={() => handleDeleteAll(type, typeName)}
+              className="btn-danger text-sm"
+            >
+              🗑️ Delete All ({fileList.length})
+            </button>
+          )}
+        </div>
       </div>
       {fileList && fileList.length > 0 ? (
         <div className="space-y-2">
@@ -150,6 +182,7 @@ export default function FileManager() {
           type="generated"
           files={files.generated}
           showBulkDelete={true}
+          showDownloadAll={true}
           typeName="Generated JSON"
         />
       </div>

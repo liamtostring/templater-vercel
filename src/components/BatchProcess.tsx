@@ -19,6 +19,7 @@ export default function BatchProcess() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any[]>([]);
+  const [cancelled, setCancelled] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -55,6 +56,7 @@ export default function BatchProcess() {
     setProcessing(true);
     setProgress(0);
     setResults([]);
+    setCancelled(false);
 
     const prompt = prompts[formData.prompt_id]?.content || '';
     const model = formData.service === 'gemini' ? formData.gemini_model : formData.openai_model;
@@ -68,6 +70,12 @@ export default function BatchProcess() {
     const allResults = [];
 
     for (let i = 0; i < chunks.length; i++) {
+      // Check if process was cancelled
+      if (cancelled) {
+        console.log('Batch process cancelled by user');
+        break;
+      }
+
       const chunk = chunks[i];
       setProgress(Math.round((i / chunks.length) * 100));
 
@@ -103,6 +111,35 @@ export default function BatchProcess() {
     setProgress(100);
     setResults(allResults);
     setProcessing(false);
+  };
+
+  const handleCancel = () => {
+    if (confirm('Are you sure you want to cancel the batch process?')) {
+      setCancelled(true);
+      setProcessing(false);
+    }
+  };
+
+  const handleDownloadAllResults = async () => {
+    try {
+      const response = await fetch('/api/download-all?type=generated');
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      // Create blob from response
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'generated_files.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      alert(`Failed to download: ${error.message}`);
+    }
   };
 
   return (
@@ -247,13 +284,24 @@ export default function BatchProcess() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={processing || selectedFiles.length === 0}
-          className="btn-primary px-8 py-3 text-lg mt-6 disabled:opacity-50"
-        >
-          {processing ? 'Processing...' : `▶️ Process ${selectedFiles.length} Files`}
-        </button>
+        <div className="flex gap-4 mt-6">
+          <button
+            type="submit"
+            disabled={processing || selectedFiles.length === 0}
+            className="btn-primary px-8 py-3 text-lg disabled:opacity-50"
+          >
+            {processing ? 'Processing...' : `▶️ Process ${selectedFiles.length} Files`}
+          </button>
+          {processing && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="btn-danger px-8 py-3 text-lg"
+            >
+              ⏹️ Cancel Process
+            </button>
+          )}
+        </div>
       </form>
 
       {/* Progress */}
@@ -274,7 +322,17 @@ export default function BatchProcess() {
       {/* Results */}
       {results.length > 0 && (
         <div className="card mt-6">
-          <h4 className="font-bold mb-3">Batch Results</h4>
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="font-bold">Batch Results</h4>
+            {results.filter(r => r.status === 'success').length > 0 && (
+              <button
+                onClick={handleDownloadAllResults}
+                className="btn-primary"
+              >
+                📦 Download All Generated Files
+              </button>
+            )}
+          </div>
           <div className="mb-4 p-4 bg-blue-50 rounded-lg">
             <strong>Complete!</strong> Successful: {results.filter(r => r.status === 'success').length} |
             Failed: {results.filter(r => r.status === 'failed').length}
