@@ -39,32 +39,35 @@ export async function GET(request: NextRequest) {
     const zip = new JSZip();
 
     // Add each file to the ZIP
-    for (const file of files) {
+    for (const filename of files) {
       try {
-        const buffer = await FileStorage.readFile(dirName, file.name);
+        const buffer = await FileStorage.readFile(dirName, filename);
         if (buffer) {
-          zip.file(file.name, buffer);
+          zip.file(filename, buffer);
         }
       } catch (error) {
-        console.error(`Error adding file ${file.name} to ZIP:`, error);
+        console.error(`Error adding file ${filename} to ZIP:`, error);
         // Continue with other files
       }
     }
 
-    // Generate ZIP buffer
-    const zipBuffer = await zip.generateAsync({
-      type: 'nodebuffer',
+    // Generate ZIP buffer as blob
+    const zipBlob = await zip.generateAsync({
+      type: 'blob',
       compression: 'DEFLATE',
       compressionOptions: { level: 9 }
     });
 
+    // Convert blob to array buffer
+    const arrayBuffer = await zipBlob.arrayBuffer();
+
     // Return ZIP file
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(arrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${type}_files.zip"`,
-        'Content-Length': zipBuffer.length.toString(),
+        'Content-Length': arrayBuffer.byteLength.toString(),
       },
     });
   } catch (error: any) {
