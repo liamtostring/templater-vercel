@@ -17,11 +17,12 @@
  * Display format: User-friendly label shown in the UI
  */
 export const GEMINI_MODELS = {
-  'gemini-2.0-flash-exp': 'Gemini 2.0 Flash Experimental (Fastest)',
-  'gemini-2.0-flash': 'Gemini 2.0 Flash (Latest & Recommended)',
-  // Add more Gemini models here as they become available
-  // Example:
-  // 'gemini-3.0-pro': 'Gemini 3.0 Pro (Future)',
+  'gemini-2.5-pro-preview-06-05': 'Gemini 2.5 Pro Preview (Most Capable)',
+  'gemini-2.5-flash-preview-05-20': 'Gemini 2.5 Flash Preview (Fast & Smart)',
+  'gemini-2.0-flash': 'Gemini 2.0 Flash (Stable)',
+  'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite (Fastest)',
+  'gemini-1.5-pro': 'Gemini 1.5 Pro (Legacy)',
+  'gemini-1.5-flash': 'Gemini 1.5 Flash (Legacy)',
 };
 
 /**
@@ -36,14 +37,14 @@ export const GEMINI_MODELS = {
  * Display format: User-friendly label shown in the UI
  */
 export const OPENAI_MODELS = {
-  'gpt-4o': 'GPT-4o (Most Capable)',
-  'gpt-4o-mini': 'GPT-4o Mini (Fast & Cheap)',
-  'gpt-4-turbo': 'GPT-4 Turbo',
-  'gpt-4': 'GPT-4',
-  'gpt-3.5-turbo': 'GPT-3.5 Turbo (Legacy)',
-  // Add more OpenAI models here
-  // Example:
-  // 'gpt-5': 'GPT-5 (Future)',
+  'o3-mini': 'O3 Mini (Best Reasoning)',
+  'o1': 'O1 (Advanced Reasoning)',
+  'o1-mini': 'O1 Mini (Fast Reasoning)',
+  'gpt-4.1': 'GPT-4.1 (Latest)',
+  'gpt-4.1-mini': 'GPT-4.1 Mini (Fast & Cheap)',
+  'gpt-4o': 'GPT-4o (Stable)',
+  'gpt-4o-mini': 'GPT-4o Mini (Budget)',
+  'gpt-4-turbo': 'GPT-4 Turbo (Legacy)',
 };
 
 /**
@@ -53,8 +54,8 @@ export const OPENAI_MODELS = {
  * Change these to your preferred defaults.
  */
 export const DEFAULT_MODELS = {
-  gemini: 'gemini-2.0-flash-exp',
-  openai: 'gpt-4o-mini',
+  gemini: 'gemini-2.5-flash-preview-05-20',
+  openai: 'gpt-4.1-mini',
   service: 'gemini' as 'gemini' | 'openai', // Default service to use
 };
 
@@ -65,11 +66,13 @@ export const DEFAULT_MODELS = {
  */
 export const MODEL_RECOMMENDATIONS = {
   gemini: {
-    fast: 'gemini-2.0-flash-exp',
-    balanced: 'gemini-2.0-flash',
+    fast: 'gemini-2.0-flash-lite',
+    balanced: 'gemini-2.5-flash-preview-05-20',
+    capable: 'gemini-2.5-pro-preview-06-05',
   },
   openai: {
-    fast: 'gpt-4o-mini',
-    capable: 'gpt-4o',
+    fast: 'gpt-4.1-mini',
+    balanced: 'gpt-4.1',
+    capable: 'o3-mini',
   },
 };
