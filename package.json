@@ -4,7 +4,7 @@
   "description": "Templater - AI-powered DOCX to JSON template processor (Vercel Edition)",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint"
   },
