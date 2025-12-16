@@ -7,11 +7,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not set');
+  // Use PRISMA_DATABASE_URL (Accelerate URL) for app queries
+  const url = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error('PRISMA_DATABASE_URL environment variable is not set');
   }
   return new PrismaClient({
-    accelerateUrl: process.env.DATABASE_URL,
+    accelerateUrl: url,
   }).$extends(withAccelerate());
 }
 

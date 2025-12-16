@@ -8,7 +8,8 @@
       "Bash(npx prisma init)",
       "Bash(npx prisma generate:*)",
       "Bash(npm uninstall:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
