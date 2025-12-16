@@ -1,6 +1,6 @@
 # Templater - Vercel Edition
 
-> AI-powered DOCX to JSON template processor, optimized for **Vercel** serverless deployment with **Vercel Blob** and **Vercel KV** storage.
+> AI-powered DOCX to JSON template processor, optimized for **Vercel** serverless deployment with **Vercel Blob** and **Prisma Postgres** storage.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/templater-vercel)
 
@@ -8,8 +8,9 @@
 
 1. **Fork & Deploy to Vercel**
    - Click the "Deploy with Vercel" button above
-   - Link Vercel Blob and Vercel KV storage
-   - Set environment variables: `APP_USERNAME`, `APP_PASSWORD`
+   - Link Vercel Blob storage
+   - Create Prisma Postgres database at [console.prisma.io](https://console.prisma.io)
+   - Set environment variables: `APP_USERNAME`, `APP_PASSWORD`, `PRISMA_DATABASE_URL`, `POSTGRES_URL`
 
 2. **Access Your App**
    - Navigate to your Vercel deployment URL
@@ -28,7 +29,7 @@
 - ✅ **Batch Processing** with timeout-resistant chunking
 - ✅ **Custom Prompts Library** for reusable templates
 - ✅ **Vercel Blob Storage** for scalable file storage
-- ✅ **Vercel KV** for session & config management
+- ✅ **Prisma Postgres** for session & config management (unlimited storage)
 - ✅ **Auto-scaling Serverless** deployment
 - ✅ **TypeScript + Next.js 14** (App Router)
 - ✅ **Bootstrap 5 UI** with tabbed interface
@@ -37,8 +38,8 @@
 
 | Feature | Original (VPS) | Vercel Edition |
 |---------|---------------|----------------|
-| **Storage** | Local filesystem | Vercel Blob |
-| **Config** | JSON file | Vercel KV (Redis) |
+| **File Storage** | Local filesystem | Vercel Blob |
+| **Config/Sessions** | JSON file (`data/config.json`) | Prisma Postgres |
 | **Deployment** | PM2/Docker on VPS | Serverless (auto-scaling) |
 | **Scalability** | Manual scaling | Automatic |
 | **Maintenance** | Self-managed | Fully managed |
@@ -60,7 +61,7 @@
 ├─────────────────────────────────────────────────────────────────┤
 │  Storage Layer                                                   │
 │  ├── Vercel Blob      - File storage (DOCX, JSON, templates)    │
-│  └── Vercel KV        - Sessions, API keys, prompts             │
+│  └── Prisma Postgres  - Sessions, API keys, prompts (via Prisma)│
 ├─────────────────────────────────────────────────────────────────┤
 │  Business Logic                                                  │
 │  ├── docx-converter   - DOCX → Markdown (Mammoth + Turndown)    │
@@ -76,7 +77,8 @@
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS + Bootstrap 5
 - **AI Services:** Google Gemini, OpenAI
-- **Storage:** Vercel Blob, Vercel KV
+- **File Storage:** Vercel Blob
+- **Database:** Prisma Postgres (via Prisma ORM + Accelerate)
 - **Document Processing:** Mammoth.js, Turndown
 - **Deployment:** Vercel (serverless)
 
@@ -86,6 +88,7 @@
 
 - Node.js 18+
 - Vercel account
+- Prisma account (for Prisma Postgres)
 - Gemini or OpenAI API key
 
 ### Local Development
@@ -103,7 +106,11 @@ cp .env.example .env.local
 # Edit .env.local with your credentials
 
 # Pull Vercel storage credentials (if already deployed)
-vercel env pull
+vercel link
+vercel env pull .env.development.local
+
+# Run database migration
+npx prisma migrate dev --name init
 
 # Run development server
 npm run dev
@@ -118,8 +125,8 @@ Access at http://localhost:3000
 1. Push to GitHub
 2. Go to [vercel.com/new](https://vercel.com/new)
 3. Import repository
-4. Link Blob + KV storage
-5. Add environment variables
+4. Link Blob storage
+5. Add environment variables (see below)
 6. Deploy
 
 **Option 2: Vercel CLI**
@@ -127,7 +134,10 @@ Access at http://localhost:3000
 ```bash
 npm install -g vercel
 vercel login
-vercel
+vercel link
+vercel env pull .env.development.local
+npx prisma migrate dev --name init
+vercel deploy
 vercel --prod
 ```
 
@@ -136,19 +146,30 @@ See **[VERCEL-DEPLOYMENT.md](./VERCEL-DEPLOYMENT.md)** for detailed instructions
 ## 🌐 Environment Variables
 
 ```env
-# Required
+# Required - Authentication
 APP_USERNAME=admin
 APP_PASSWORD=your_secure_password
 
+# Required - Prisma Postgres
+PRISMA_DATABASE_URL=prisma+postgres://accelerate.prisma-data.net/?api_key=...
+POSTGRES_URL=postgres://...@db.prisma.io:5432/postgres?sslmode=require
+
 # Auto-injected by Vercel (don't set manually)
 BLOB_READ_WRITE_TOKEN=auto_generated
-KV_REST_API_URL=auto_generated
-KV_REST_API_TOKEN=auto_generated
 
-# Optional
+# Optional - Pre-configure API keys
 GEMINI_API_KEY=your_gemini_key
 OPENAI_API_KEY=your_openai_key
 ```
+
+### Getting Prisma Postgres Credentials
+
+1. Go to [console.prisma.io](https://console.prisma.io)
+2. Create a new project
+3. Create a Prisma Postgres database
+4. Copy the connection strings:
+   - `PRISMA_DATABASE_URL` - Accelerate URL (for app queries)
+   - `POSTGRES_URL` - Direct URL (for migrations)
 
 ## 📖 Usage Guide
 
@@ -225,15 +246,13 @@ vercel-blob://
 └── enhanced/       # Optional markdown output
 ```
 
-Persistent data (API keys, prompts, sessions) stored in Vercel KV:
+Persistent data (API keys, prompts, sessions) stored in Prisma Postgres:
 
 ```
-vercel-kv://
-├── templater:gemini_api_key
-├── templater:openai_api_key
-├── templater:prompt_default
-├── templater:prompt_seo_optimizer
-└── templater:session_abc123...
+Database Tables:
+├── Setting         # Key-value storage (API keys, config)
+├── Prompt          # Custom AI prompts
+└── Session         # User sessions
 ```
 
 ## ⚙️ Configuration
@@ -270,26 +289,31 @@ vercel-kv://
 ### Vercel Hobby Plan (Free)
 
 - **Blob Storage:** 1GB
-- **KV Storage:** 256MB
 - **Function Timeout:** 10 seconds
 - **Bandwidth:** 100GB/month
 
 ### Vercel Pro Plan ($20/month)
 
 - **Blob Storage:** 100GB
-- **KV Storage:** 256MB
 - **Function Timeout:** 60 seconds
 - **Bandwidth:** 1TB/month
 
-See [pricing details](https://vercel.com/pricing).
+### Prisma Postgres (Free Tier)
+
+- **Storage:** 5GB
+- **Queries:** Unlimited
+- **Accelerate caching:** Included
+
+See [Vercel pricing](https://vercel.com/pricing) and [Prisma pricing](https://www.prisma.io/pricing).
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
 **"Session not found"**
-- Ensure Vercel KV is linked in dashboard
-- Check environment variables are set
+- Ensure Prisma Postgres database is created
+- Check `PRISMA_DATABASE_URL` is set correctly
+- Run `npx prisma migrate deploy` if tables are missing
 
 **"Failed to upload file"**
 - Ensure Vercel Blob is linked
@@ -304,11 +328,16 @@ See [pricing details](https://vercel.com/pricing).
 - First request ~1-2s slower (normal)
 - Use uptime monitoring to keep warm
 
+**Database connection errors**
+- Verify `PRISMA_DATABASE_URL` format starts with `prisma+postgres://`
+- Verify `POSTGRES_URL` format starts with `postgres://`
+
 ## 📚 Documentation
 
 - **[VERCEL-DEPLOYMENT.md](./VERCEL-DEPLOYMENT.md)** - Detailed deployment guide
+- **[CLAUDE.md](./CLAUDE.md)** - Technical architecture details
 - **[Vercel Blob Docs](https://vercel.com/docs/storage/vercel-blob)** - Blob storage API
-- **[Vercel KV Docs](https://vercel.com/docs/storage/vercel-kv)** - KV storage API
+- **[Prisma Postgres Docs](https://www.prisma.io/docs/orm/overview/databases/prisma-postgres)** - Database docs
 - **[Next.js 14 Docs](https://nextjs.org/docs)** - Framework documentation
 
 ## 🤝 Contributing
@@ -321,10 +350,10 @@ MIT
 
 ## 🔗 Links
 
-- **Original Version:** [VPS/Docker deployment](https://github.com/yourusername/templater)
+- **Original Version:** [VPS/Docker deployment](https://github.com/yourusername/templater) - Standalone version for VPS
 - **Demo:** [templater-demo.vercel.app](https://templater-demo.vercel.app)
 - **Support:** Open an issue on GitHub
 
 ---
 
-**Built with ❤️ using Next.js, Vercel, and AI**
+**Built with Next.js, Vercel, Prisma, and AI**

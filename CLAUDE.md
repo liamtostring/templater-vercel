@@ -4,13 +4,13 @@ This file provides guidance to Claude Code when working with the **Vercel-optimi
 
 ## Project Overview
 
-**Templater Vercel Edition** is a serverless version of the Templater app, built with Next.js 14 + TypeScript and optimized for Vercel deployment. It uses **Vercel Blob** for file storage and **Vercel KV** for session/config management.
+**Templater Vercel Edition** is a serverless version of the Templater app, built with Next.js 14 + TypeScript and optimized for Vercel deployment. It uses **Vercel Blob** for file storage and **Prisma Postgres** for session/config management.
 
 ### Key Differences from Original Version
 
 1. **Storage Backend:**
    - Original: Local filesystem (`uploads/`, `data/config.json`)
-   - Vercel: Vercel Blob (files) + Vercel KV (config/sessions)
+   - Vercel: Vercel Blob (files) + Prisma Postgres (config/sessions)
 
 2. **Deployment:**
    - Original: VPS with PM2/Docker
@@ -18,7 +18,7 @@ This file provides guidance to Claude Code when working with the **Vercel-optimi
 
 3. **Session Management:**
    - Original: In-memory Map with filesystem persistence
-   - Vercel: Vercel KV (Redis-based)
+   - Vercel: Prisma Postgres database
 
 4. **File Operations:**
    - Original: Node.js `fs` module
@@ -29,7 +29,8 @@ This file provides guidance to Claude Code when working with the **Vercel-optimi
 ```
 src/
 ├── lib/
-│   ├── storage.ts            # Vercel KV adapter (API keys, prompts, sessions)
+│   ├── prisma.ts             # Prisma client instance (with Accelerate)
+│   ├── storage.ts            # Prisma-based storage (API keys, prompts, sessions)
 │   ├── blob-storage.ts       # Vercel Blob adapter (file operations)
 │   ├── file-storage.ts       # Unified interface (wraps blob-storage)
 │   ├── auth.ts               # Authentication (unchanged)
@@ -37,7 +38,9 @@ src/
 │   ├── docx-converter.ts     # DOCX → Markdown (unchanged)
 │   ├── ai-service.ts         # Gemini/OpenAI integration (unchanged)
 │   ├── template-processor.ts # Variable parsing (unchanged)
-│   └── prompt-library.ts     # Prompt CRUD (uses storage.ts with indexing)
+│   └── prompt-library.ts     # Prompt CRUD (uses storage.ts)
+├── generated/
+│   └── prisma/               # Generated Prisma client
 ├── app/
 │   ├── api/                  # API routes (serverless functions)
 │   │   ├── auth/route.ts     # Login/logout/check
@@ -55,34 +58,80 @@ src/
     ├── PromptLibrary.tsx
     ├── Settings.tsx
     └── FileManager.tsx
+prisma/
+├── schema.prisma             # Database schema
+└── migrations/               # Database migrations
 ```
 
 ## Storage Layer
 
-### Vercel KV Storage (`src/lib/storage.ts`)
+### Prisma Postgres Storage (`src/lib/storage.ts`)
 
 **Purpose:** Store persistent configuration and session data
 
 **Implementation:**
-- Uses `@vercel/kv` SDK
-- All keys prefixed with `templater:`
-- Index-based pattern matching (KV doesn't support Redis KEYS)
+- Uses Prisma ORM with `@prisma/extension-accelerate`
+- Connects to Prisma Postgres (serverless PostgreSQL)
+- Uses `Setting` model for key-value storage
 
 **Key Methods:**
 - `Storage.getAsync<T>(key, defaultValue)` - Retrieve value
-- `Storage.setAsync<T>(key, value)` - Save value
+- `Storage.setAsync<T>(key, value)` - Save value (upsert)
 - `Storage.deleteAsync(key)` - Delete value
-- `Storage.getAllAsync<T>(pattern)` - Get all matching pattern (uses index)
-- `Storage.addToIndex(pattern, key)` - Add key to index
-- `Storage.removeFromIndex(pattern, key)` - Remove key from index
+- `Storage.getAllAsync<T>(pattern)` - Get all matching pattern (uses `startsWith`)
 
-**Data Stored:**
+**Database Schema (`prisma/schema.prisma`):**
+```prisma
+model Setting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Prompt {
+  id        String   @id
+  name      String
+  content   String   @db.Text
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id        String   @id
+  username  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+```
+
+**Data Stored in Setting table:**
 - `gemini_api_key` - Gemini API key
 - `openai_api_key` - OpenAI API key
 - `prompt_default` - Default prompt
 - `prompt_*` - Custom prompts
 - `session_*` - User sessions
-- `index:prompt_` - Index of all prompt keys
+
+### Prisma Client (`src/lib/prisma.ts`)
+
+**Purpose:** Create and manage Prisma client instance
+
+**Implementation:**
+```typescript
+import { PrismaClient } from '@/generated/prisma/client';
+import { withAccelerate } from '@prisma/extension-accelerate';
+
+function createPrismaClient() {
+  const url = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+  return new PrismaClient({
+    accelerateUrl: url,
+  }).$extends(withAccelerate());
+}
+```
+
+- Uses `PRISMA_DATABASE_URL` for app queries (Accelerate URL)
+- Singleton pattern prevents multiple connections in development
 
 ### Vercel Blob Storage (`src/lib/blob-storage.ts`)
 
@@ -120,32 +169,41 @@ This allows API routes to remain mostly unchanged from the original version.
 
 ## Important Implementation Details
 
-### Pattern Matching with Vercel KV
+### Prisma 7 Configuration
 
-Vercel KV uses Upstash (Redis-compatible), which doesn't support `KEYS` command efficiently. We use an **index-based approach**:
+Prisma 7 uses a new configuration format:
 
-1. When saving a prompt, call `Storage.addToIndex('prompt_', promptId)`
-2. Index stored at `templater:index:prompt_` as array of keys
-3. `getAllAsync('prompt_')` reads index and fetches each key
-
-**Example:**
+**`prisma.config.ts`:**
 ```typescript
-// Save prompt
-await Storage.setAsync('prompt_seo', promptData);
-await Storage.addToIndex('prompt_', 'prompt_seo'); // Add to index
+import { defineConfig, env } from "prisma/config";
 
-// Get all prompts
-const prompts = await Storage.getAllAsync('prompt_'); // Uses index
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: { path: "prisma/migrations" },
+  datasource: {
+    url: env("POSTGRES_URL"),  // Direct URL for migrations
+  },
+});
+```
 
-// Delete prompt
-await Storage.deleteAsync('prompt_seo');
-await Storage.removeFromIndex('prompt_', 'prompt_seo'); // Remove from index
+**Environment Variables:**
+- `PRISMA_DATABASE_URL` - Accelerate URL (for app queries via Prisma client)
+- `POSTGRES_URL` - Direct URL (for migrations via `prisma migrate`)
+
+### Build Script
+
+The build script generates the Prisma client before building:
+
+```json
+"scripts": {
+  "build": "prisma generate && next build"
+}
 ```
 
 ### Serverless Constraints
 
 1. **No filesystem access** - All files go to Vercel Blob
-2. **Stateless functions** - No in-memory session storage
+2. **Stateless functions** - Sessions stored in Prisma Postgres
 3. **Timeout limits:**
    - Hobby plan: 10 seconds
    - Pro plan: 60 seconds
@@ -166,9 +224,9 @@ Client-side chunking is critical to avoid timeouts:
 
 - `APP_USERNAME` - Login username
 - `APP_PASSWORD` - Login password
+- `PRISMA_DATABASE_URL` - Prisma Accelerate URL (for app queries)
+- `POSTGRES_URL` - Direct Postgres URL (for migrations)
 - `BLOB_READ_WRITE_TOKEN` - Auto-injected by Vercel
-- `KV_REST_API_URL` - Auto-injected by Vercel
-- `KV_REST_API_TOKEN` - Auto-injected by Vercel
 
 ### Optional
 
@@ -177,30 +235,41 @@ Client-side chunking is critical to avoid timeouts:
 
 ### Local Development
 
-Create `.env.local`:
+Create `.env`:
 
 ```env
-APP_USERNAME=admin
-APP_PASSWORD=test123
+# Direct URL for migrations
+POSTGRES_URL="postgres://...@db.prisma.io:5432/postgres?sslmode=require"
 
-# Pull from Vercel:
-# vercel env pull
+# Accelerate URL for app queries
+PRISMA_DATABASE_URL="prisma+postgres://accelerate.prisma-data.net/?api_key=..."
+```
+
+Pull from Vercel if already deployed:
+```bash
+vercel link
+vercel env pull .env.development.local
 ```
 
 ## Deployment
 
-### Vercel Dashboard
+### Initial Setup
 
-1. Link Vercel Blob storage (auto-injects `BLOB_READ_WRITE_TOKEN`)
-2. Link Vercel KV storage (auto-injects KV credentials)
-3. Add environment variables: `APP_USERNAME`, `APP_PASSWORD`
-4. Deploy
+1. Create Prisma Postgres database at [console.prisma.io](https://console.prisma.io)
+2. Get connection strings (`PRISMA_DATABASE_URL`, `POSTGRES_URL`)
+3. Add to Vercel environment variables
+4. Link Vercel Blob storage
+5. Run migration: `npx prisma migrate dev --name init`
+6. Deploy
 
 ### Vercel CLI
 
 ```bash
 vercel login
-vercel
+vercel link
+vercel env pull .env.development.local
+npx prisma migrate dev --name init
+vercel deploy
 vercel --prod
 ```
 
@@ -208,13 +277,13 @@ vercel --prod
 
 | File | Changes |
 |------|---------|
-| `src/lib/storage.ts` | Complete rewrite for Vercel KV |
-| `src/lib/blob-storage.ts` | New file for Vercel Blob |
-| `src/lib/file-storage.ts` | Rewritten to wrap blob-storage |
-| `src/lib/prompt-library.ts` | Added index management |
-| `package.json` | Added @vercel/blob, @vercel/kv |
-| `vercel.json` | New configuration file |
-| `.env.example` | Updated for Vercel variables |
+| `src/lib/prisma.ts` | New file - Prisma client with Accelerate |
+| `src/lib/storage.ts` | Rewritten for Prisma (was Edge Config) |
+| `src/lib/blob-storage.ts` | Vercel Blob adapter (unchanged) |
+| `src/lib/file-storage.ts` | Wraps blob-storage (unchanged) |
+| `prisma/schema.prisma` | Database schema |
+| `prisma.config.ts` | Prisma 7 configuration |
+| `package.json` | Added prisma, @prisma/client, @prisma/extension-accelerate |
 
 ## Files Unchanged from Original
 
@@ -222,6 +291,7 @@ vercel --prod
 - `src/lib/docx-converter.ts` - DOCX processing
 - `src/lib/ai-service.ts` - Gemini/OpenAI integration
 - `src/lib/template-processor.ts` - Variable parsing
+- `src/lib/prompt-library.ts` - Uses Storage interface (unchanged API)
 - `src/app/api/**/*.ts` - API routes (use abstracted storage)
 - `src/components/**/*.tsx` - React components
 - `src/app/**/*.tsx` - Pages and layouts
@@ -233,18 +303,16 @@ vercel --prod
 npm install
 
 # Pull environment from Vercel (if deployed)
-vercel env pull
+vercel env pull .env.development.local
 
-# Or create .env.local manually
-cp .env.example .env.local
+# Or create .env manually with POSTGRES_URL and PRISMA_DATABASE_URL
+
+# Run migration
+npx prisma migrate dev --name init
 
 # Run development server
 npm run dev
 ```
-
-**Note:** Local development requires Vercel storage credentials. Either:
-1. Deploy first, then `vercel env pull`
-2. Create local Vercel Blob/KV stores for testing
 
 ## Common Development Tasks
 
@@ -252,8 +320,8 @@ npm run dev
 
 1. User creates via UI (Prompt Library tab)
 2. `PromptLibrary.saveAsync()` called
-3. Saves to KV: `templater:prompt_{id}`
-4. Adds to index: `templater:index:prompt_`
+3. `Storage.setAsync()` upserts to `Setting` table
+4. Value stored as JSON string
 
 ### Upload a File
 
@@ -276,14 +344,14 @@ npm run dev
 ### Session Management
 
 1. User logs in → `/api/auth` (action: login)
-2. Creates session in KV: `templater:session_{uuid}`
+2. Creates session in database via `Storage.setAsync('session_{uuid}', data)`
 3. Sets httpOnly cookie: `session_id={uuid}`
-4. Subsequent requests: `checkAuth()` validates session from KV
-5. Logout: Deletes session from KV
+4. Subsequent requests: `checkAuth()` validates session from database
+5. Logout: Deletes session via `Storage.deleteAsync('session_{uuid}')`
 
 ## Performance Considerations
 
-1. **Minimize KV reads** - Cache in API route scope (not across invocations)
+1. **Connection pooling** - Prisma Accelerate handles this automatically
 2. **Batch Blob operations** - List once, not per file
 3. **Chunk large files** - Stay under 60s timeout
 4. **Use streaming** - For large AI responses (future enhancement)
@@ -292,21 +360,20 @@ npm run dev
 
 - All file paths sanitized (`path.basename()`)
 - Session cookies are httpOnly
-- API keys encrypted in KV (future enhancement)
 - HTTPS enforced by Vercel
+- Database credentials in environment variables
 
 ## Monitoring
 
 - View logs: `vercel logs`
 - Dashboard: Vercel deployment page → Functions tab
-- KV metrics: Vercel dashboard → Storage → KV
+- Database: [console.prisma.io](https://console.prisma.io) → Your project
 - Blob metrics: Vercel dashboard → Storage → Blob
 
 ## Future Enhancements
 
 - [ ] Streaming AI responses
 - [ ] Webhook-based batch processing
-- [ ] Encrypt API keys in KV
 - [ ] Background cleanup jobs (Vercel Cron)
 - [ ] Real-time progress (WebSocket/SSE)
 - [ ] Multi-user support with per-user storage
