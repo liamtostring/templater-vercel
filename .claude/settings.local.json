@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm run build:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "WebSearch",
+      "Bash(npm install:*)",
+      "Bash(npx prisma init)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

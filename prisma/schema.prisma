@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Key-value store for settings (API keys, etc.)
+model Setting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Prompts for AI processing
+model Prompt {
+  id        String   @id
+  name      String
+  content   String   @db.Text
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User sessions
+model Session {
+  id        String   @id
+  username  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
